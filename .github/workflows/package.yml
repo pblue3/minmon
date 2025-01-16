@@ -1,0 +1,28 @@
+jobs:
+  build:
+    name: "Build RPM"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      - name: Install Cargo
+        run: sudo apt update && sudo apt install -y cargo openssl gcc
+      - name: Prepare Rust build for multi-system
+        run: rustup component add rust-std-x86_64-unknown-linux-musl
+      - name: Build minmon
+        run: cargo install --features systemd --target x86_64-unknown-linux-musl --path .
+      - name: "Ruby Environment"
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.5"
+      - name: "Prepare FPM"
+        run: gem install fpm
+      - name: Prepare package
+        run: |
+            mkdir -p pkg/etc pkg/usr/bin pkg/lib/systemd/system
+            cp systemd.minmon.service pkg/lib/systemd/system/minmon.service
+            cp /home/runner/.cargo/bin/minmon pkg/usr/bin/minmon
+      - name: "Package RPM"
+        run: fpm -s dir -t rpm -p minmon-1.0-${{ github.run_id }}.rpm -v 1.0 --iteration ${{ github.run_id }}  -n minmon -m devops -C pkg .
+      - name: "Package Apt"
+        run: fpm -s dir -t deb -p minmon-1.0-${{ github.run_id }}.deb -v 1.0 --iteration ${{ github.run_id }}  -n minmon -m devops -C pkg .
